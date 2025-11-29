@@ -1,0 +1,25 @@
+{
+  "name": "shbot",
+  "version": "1.0.0",
+  "description": "승환디스코드봇",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imssh0327/shbot.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/imssh0327/shbot/issues"
+  },
+  "homepage": "https://github.com/imssh0327/shbot#readme",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^17.2.3"
+  }
+}
