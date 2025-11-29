@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  discord-bot:
+    build: .
+    container_name: discord-bot-dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
