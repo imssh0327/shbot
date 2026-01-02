@@ -1,4 +1,5 @@
-require("dotenv").config();
+const dotenv = require("dotenv");
+dotenv.config();
 
 const { DISCORD_BOT_TOKEN, CLIENT_ID, GUILD_ID, YOUTUBE_API_KEY } = process.env;
 
