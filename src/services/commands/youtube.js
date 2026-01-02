@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, EmbedBuilder } = require("discord.js");
-const { YOUTUBE_API_KEY } = require("../config/env");
+const { YOUTUBE_API_KEY } = require("../../config/env");
 
 /**
  * YouTube 검색 API 호출

@@ -1,4 +1,3 @@
-// src/bot.js
 const { Client, GatewayIntentBits, Partials, Collection } = require("discord.js");
 const { DISCORD_BOT_TOKEN } = require("./config/env");
 const fs = require("node:fs");
@@ -6,9 +5,9 @@ const path = require("node:path");
 
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,          // 서버 관련
-    GatewayIntentBits.GuildMessages,   // 메시지
-    GatewayIntentBits.MessageContent,  // 내용
+    GatewayIntentBits.Guilds, // 서버 관련
+    GatewayIntentBits.GuildMessages, // 메시지
+    GatewayIntentBits.MessageContent, // 내용
   ],
   partials: [Partials.Message, Partials.Channel, Partials.GuildMember],
 });
@@ -16,7 +15,9 @@ const client = new Client({
 client.commands = new Collection();
 const commandsPath = path.join(__dirname, "commands");
 if (fs.existsSync(commandsPath)) {
-  const commandFiles = fs.readdirSync(commandsPath).filter((f) => f.endsWith(".js"));
+  const commandFiles = fs
+    .readdirSync(commandsPath)
+    .filter((f) => f.endsWith(".js"));
   for (const file of commandFiles) {
     const command = require(path.join(commandsPath, file));
     if (command?.data?.name && typeof command.execute === "function") {
@@ -24,7 +25,6 @@ if (fs.existsSync(commandsPath)) {
     }
   }
 }
-
 
 client.once("ready", () => {
   console.log(`✅ 봇 로그인 완료: ${client.user.tag}`);
@@ -63,7 +63,7 @@ client.on("error", (error) => {
 
 process.on("unhandledRejection", (error) => {
   console.error("❌ 처리되지 않은 Promise 거부:", error);
-  
+
   // Intent 관련 에러인 경우 명확한 안내 메시지
   if (error.message && error.message.includes("disallowed intents")) {
     console.error("\n⚠️  Intent 활성화가 필요합니다!");
