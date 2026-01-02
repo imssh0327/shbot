@@ -2,11 +2,11 @@
   "name": "shbot",
   "version": "1.0.0",
   "description": "승환디스코드봇",
-  "main": "src/bot.js",
+  "main": "src/app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/bot.js",
-    "start": "node src/bot.js",
+    "dev": "nodemon src/app.js",
+    "start": "node src/app.js",
     "deploy:commands": "node src/deploy-commands.js"
   },
   "repository": {
