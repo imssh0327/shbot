@@ -1,6 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { riotGet, handleRiotError } = require("../../lib/riot");
-const { clampDiscordMessage } = require("../../utils/discordFormat");
 
 const ASIA_API = "https://asia.api.riotgames.com";
 const KR_API = "https://kr.api.riotgames.com";
@@ -240,5 +239,5 @@ function formatOutput({ gameName, tagLine, rankedEntry, emojiLine, rankedResults
   lines.push(`최근 랭크 10경기`);
   lines.push(`${emojiLine}`);
   lines.push("");
-  return clampDiscordMessage(lines.join("\n"));
+  return lines.join("\n");
 }
