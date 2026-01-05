@@ -22,8 +22,10 @@
   },
   "homepage": "https://github.com/imssh0327/shbot#readme",
   "dependencies": {
+    "@discordjs/voice": "^0.19.0",
     "discord.js": "^14.25.1",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "play-dl": "^1.9.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
