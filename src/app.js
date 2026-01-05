@@ -13,7 +13,9 @@ const client = new Client({
 });
 
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, "commands");
+const commandsPath = path.join(__dirname, "services", "commands");
+console.log("commandsPath:", commandsPath);
+
 if (fs.existsSync(commandsPath)) {
   const commandFiles = fs
     .readdirSync(commandsPath)

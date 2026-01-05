@@ -9,7 +9,7 @@ const { DISCORD_BOT_TOKEN, CLIENT_ID, GUILD_ID } = require("./config/env");
  */
 function loadCommands() {
   const commands = [];
-  const commandsPath = path.join(__dirname, "commands");
+  const commandsPath = path.join(__dirname, "services", "commands");
 
   if (!fs.existsSync(commandsPath)) return commands;
 
