@@ -1,0 +1,244 @@
+const { SlashCommandBuilder } = require("discord.js");
+const { riotGet, handleRiotError } = require("../../lib/riot");
+const { clampDiscordMessage } = require("../../utils/discordFormat");
+
+const ASIA_API = "https://asia.api.riotgames.com";
+const KR_API = "https://kr.api.riotgames.com";
+
+const TFT_RANKED_QUEUE_ID = 1100;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+module.exports = {
+  data: new SlashCommandBuilder()
+    .setName("롤체전적")
+    .setDescription("롤토체스 티어 및 최근 랭크 10경기 등수를 조회합니다.")
+    .addStringOption((opt) =>
+      opt.setName("닉네임").setDescription("Riot ID 게임 닉네임").setRequired(true)
+    )
+    .addStringOption((opt) =>
+      opt.setName("태그").setDescription("Riot ID 태그 (예: KR1)").setRequired(true)
+    ),
+
+  async execute(interaction) {
+    const gameName = interaction.options.getString("닉네임", true).trim();
+    const tagLine = interaction.options.getString("태그", true).trim();
+
+    await interaction.deferReply();
+
+    try {
+      // 1) Riot ID -> PUUID
+      const account = await getAccountByRiotId(gameName, tagLine);
+      const puuid = account?.puuid;
+
+      if (!puuid) {
+        await interaction.editReply("PUUID를 가져오지 못했습니다. Riot ID를 확인해 주세요.");
+        return;
+      }
+
+      // 2) 티어 및 LP: PUUID 기반 조회
+      let rankedEntry = null;
+      try {
+        const leagueData = await getTftLeagueByPuuid(puuid);
+        rankedEntry = normalizeRankedEntry(leagueData);
+      } catch (e) {
+        // 랭크 기록이 없으면 404가 날 수 있으므로 Unranked로 처리
+        if (e?.status === 404) {
+          rankedEntry = null;
+        } else {
+          throw e;
+        }
+      }
+
+      // 3) 최근 매치 IDs를 가져온 뒤, match 상세에서 랭크만 10개 선별
+      const matchIds = await getRecentTftMatchIds(puuid, 30);
+
+      const rankedResults = await collectRecentRankedPlacements({
+        puuid,
+        matchIds,
+        limit: 10,
+      });
+
+      if (rankedResults.length === 0) {
+        const out = formatOutput({
+          gameName,
+          tagLine,
+          rankedEntry,
+          emojiLine: "랭크 경기 기록이 확인되지 않습니다.",
+          rankedResults,
+        });
+        await interaction.editReply(out);
+        return;
+      }
+
+      const emojiLine = rankedResults
+        .map((r) => placementToEmoji(r.placement))
+        .join(" ");
+
+      const out = formatOutput({
+        gameName,
+        tagLine,
+        rankedEntry,
+        emojiLine,
+        rankedResults,
+      });
+
+      await interaction.editReply(out);
+    } catch (e) {
+      const handled = await handleRiotError(interaction, e);
+      if (handled) return;
+
+      console.error("전적검색 에러:", e);
+      await interaction.editReply("전적 조회 중 오류가 발생했습니다. 서버 로그를 확인해 주세요.");
+    }
+  },
+};
+
+async function getAccountByRiotId(gameName, tagLine) {
+  const url =
+    `${ASIA_API}/riot/account/v1/accounts/by-riot-id/` +
+    `${encodeURIComponent(gameName)}/` +
+    `${encodeURIComponent(tagLine)}`;
+
+  return riotGet(url);
+}
+
+// 티어 및 LP 조회: PUUID 기반
+async function getTftLeagueByPuuid(puuid) {
+  const url = `${KR_API}/tft/league/v1/by-puuid/` + encodeURIComponent(puuid);
+  return riotGet(url);
+}
+
+// by-puuid 응답 형태가 단일 객체인 경우가 일반적이므로 단일을 기본으로 처리
+// 만약 배열로 오는 환경도 대비
+function normalizeRankedEntry(leagueData) {
+  if (!leagueData) return null;
+
+  if (Array.isArray(leagueData)) {
+    // 혹시 배열로 내려오면 RANKED_TFT 우선
+    return leagueData.find((e) => e?.queueType === "RANKED_TFT") || leagueData[0] || null;
+  }
+
+  // 단일 객체라면 그대로 사용
+  return leagueData;
+}
+
+async function getRecentTftMatchIds(puuid, count = 30) {
+  const url =
+    `${ASIA_API}/tft/match/v1/matches/by-puuid/` +
+    `${encodeURIComponent(puuid)}` +
+    `/ids?count=${encodeURIComponent(String(count))}`;
+
+  return riotGet(url);
+}
+
+async function getMatchDto(matchId) {
+  const url = `${ASIA_API}/tft/match/v1/matches/${encodeURIComponent(matchId)}`;
+  return riotGet(url);
+}
+
+function isRankedTftMatch(matchDto) {
+  return matchDto?.info?.queue_id === TFT_RANKED_QUEUE_ID;
+}
+
+function extractPlacement(matchDto, puuid) {
+  const participants = matchDto?.info?.participants;
+  if (!Array.isArray(participants)) return null;
+
+  const me = participants.find((p) => p.puuid === puuid);
+  return me?.placement ?? null;
+}
+
+function extractDateText(matchDto) {
+  const ts = matchDto?.info?.game_datetime;
+  if (!ts) return "날짜 없음";
+
+  try {
+    const d = new Date(ts);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  } catch {
+    return "날짜 없음";
+  }
+}
+
+async function collectRecentRankedPlacements({ puuid, matchIds, limit }) {
+  const out = [];
+  if (!Array.isArray(matchIds) || matchIds.length === 0) return out;
+
+  for (let i = 0; i < matchIds.length; i += 1) {
+    const matchId = matchIds[i];
+    const matchDto = await getMatchDto(matchId);
+
+    if (!isRankedTftMatch(matchDto)) {
+      await sleep(120);
+      continue;
+    }
+
+    const placement = extractPlacement(matchDto, puuid);
+    const dateText = extractDateText(matchDto);
+
+    if (placement != null) {
+      out.push({ placement, dateText, matchId });
+    }
+
+    if (out.length >= limit) break;
+
+    // 429 방지
+    await sleep(150);
+  }
+
+  return out;
+}
+
+function placementToEmoji(n) {
+  switch (n) {
+    case 1:
+      return "1️⃣";
+    case 2:
+      return "2️⃣";
+    case 3:
+      return "3️⃣";
+    case 4:
+      return "4️⃣";
+    case 5:
+      return "5️⃣";
+    case 6:
+      return "6️⃣";
+    case 7:
+      return "7️⃣";
+    case 8:
+      return "8️⃣";
+    default:
+      return "▫️";
+  }
+}
+
+function formatTierLine(rankedEntry) {
+  if (!rankedEntry) return "티어: Unranked";
+
+  const tier = rankedEntry.tier || "";
+  const rank = rankedEntry.rank || "";
+  const lp =
+    typeof rankedEntry.leaguePoints === "number" ? rankedEntry.leaguePoints : null;
+
+  // 마스터 이상은 rank가 없을 수 있어 tier만 찍히는 경우도 방어
+  const tierRank = `${tier} ${rank}`.trim();
+  const lpText = lp == null ? "" : ` ${lp}LP`;
+
+  return `티어: ${tierRank}${lpText}`.trim();
+}
+
+function formatOutput({ gameName, tagLine, rankedEntry, emojiLine, rankedResults }) {
+  const lines = [];
+  lines.push(`${gameName}#${tagLine}`);
+  lines.push(formatTierLine(rankedEntry));
+  lines.push(`최근 랭크 10경기`);
+  lines.push(`${emojiLine}`);
+  lines.push("");
+  return clampDiscordMessage(lines.join("\n"));
+}
