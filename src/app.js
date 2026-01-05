@@ -8,12 +8,13 @@ const client = new Client({
     GatewayIntentBits.Guilds, // 서버 관련
     GatewayIntentBits.GuildMessages, // 메시지
     GatewayIntentBits.MessageContent, // 내용
+    GatewayIntentBits.GuildVoiceStates, // 음성 채널
   ],
   partials: [Partials.Message, Partials.Channel, Partials.GuildMember],
 });
 
 client.commands = new Collection();
-const commandsPath = path.join(__dirname, "commands");
+const commandsPath = path.join(__dirname, "services", "commands");
 if (fs.existsSync(commandsPath)) {
   const commandFiles = fs
     .readdirSync(commandsPath)
