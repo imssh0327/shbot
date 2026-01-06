@@ -6,94 +6,143 @@ const KR_API = "https://kr.api.riotgames.com";
 
 const TFT_RANKED_QUEUE_ID = 1100;
 
+// /tft 낙타 고정 대상
+const NAKTA_GAME_NAME = "롤체는너무어려워";
+const NAKTA_TAG = "운빨게임";
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName("롤체전적")
-    .setDescription("롤토체스 티어 및 최근 랭크 10경기 등수를 조회합니다.")
-    .addStringOption((opt) =>
-      opt.setName("닉네임").setDescription("Riot ID 게임 닉네임").setRequired(true)
+    .setName("tft")
+    .setDescription("롤토체스 관련 기능")
+    .addSubcommand((sub) =>
+      sub
+        .setName("record")
+        .setDescription("롤토체스 티어 및 최근 랭크 10경기 등수를 조회합니다.")
+        .setNameLocalizations({ ko: "전적검색" })
+        .setDescriptionLocalizations({ ko: "롤토체스 티어 및 최근 랭크 10경기 등수를 조회합니다." })
+        .addStringOption((opt) =>
+          opt
+            .setName("game")
+            .setDescription("Riot ID 게임 닉네임")
+            .setRequired(true)
+            .setNameLocalizations({ ko: "닉네임" })
+            .setDescriptionLocalizations({ ko: "Riot ID 게임 닉네임" })
+        )
+        .addStringOption((opt) =>
+          opt
+            .setName("tag")
+            .setDescription("Riot ID 태그 (예: KR1)")
+            .setRequired(true)
+            .setNameLocalizations({ ko: "태그" })
+            .setDescriptionLocalizations({ ko: "Riot ID 태그 (예: KR1)" })
+        )
     )
-    .addStringOption((opt) =>
-      opt.setName("태그").setDescription("Riot ID 태그 (예: KR1)").setRequired(true)
+    .addSubcommand((sub) =>
+      sub
+        .setName("camel")
+        .setDescription("롤체는너무어려워#운빨게임 전적을 조회합니다.")
+        .setNameLocalizations({ ko: "낙타" })
+        .setDescriptionLocalizations({ ko: "롤체는너무어려워#운빨게임 전적을 자동 조회합니다." })
     ),
 
   async execute(interaction) {
-    const gameName = interaction.options.getString("닉네임", true).trim();
-    const tagLine = interaction.options.getString("태그", true).trim();
-
     await interaction.deferReply();
 
     try {
-      // 1) Riot ID -> PUUID
-      const account = await getAccountByRiotId(gameName, tagLine);
-      const puuid = account?.puuid;
+      const sub = interaction.options.getSubcommand();
 
-      if (!puuid) {
-        await interaction.editReply("PUUID를 가져오지 못했습니다. Riot ID를 확인해 주세요.");
+      // /tft 전적검색 <닉네임><태그>
+      if (sub === "record") {
+        const gameName = interaction.options.getString("game", true).trim();
+        const tagLine = interaction.options.getString("tag", true).trim();
+
+        const out = await runTftRecord({ gameName, tagLine });
+        await interaction.editReply(out);
         return;
       }
 
-      // 2) 티어 및 LP: PUUID 기반 조회
-      let rankedEntry = null;
-      try {
-        const leagueData = await getTftLeagueByPuuid(puuid);
-        rankedEntry = normalizeRankedEntry(leagueData);
-      } catch (e) {
-        // 랭크 기록이 없으면 404가 날 수 있으므로 Unranked로 처리
-        if (e?.status === 404) {
-          rankedEntry = null;
-        } else {
-          throw e;
-        }
-      }
-
-      // 3) 최근 매치 IDs를 가져온 뒤, match 상세에서 랭크만 10개 선별
-      const matchIds = await getRecentTftMatchIds(puuid, 30);
-
-      const rankedResults = await collectRecentRankedPlacements({
-        puuid,
-        matchIds,
-        limit: 10,
-      });
-
-      if (rankedResults.length === 0) {
-        const out = formatOutput({
-          gameName,
-          tagLine,
-          rankedEntry,
-          emojiLine: "랭크 경기 기록이 확인되지 않습니다.",
-          rankedResults,
+      // /tft 낙타
+      if (sub === "camel") {
+        const out = await runTftRecord({
+          gameName: NAKTA_GAME_NAME,
+          tagLine: NAKTA_TAG,
         });
         await interaction.editReply(out);
         return;
       }
 
-      const emojiLine = rankedResults
-        .map((r) => placementToEmoji(r.placement))
-        .join(" ");
-
-      const out = formatOutput({
-        gameName,
-        tagLine,
-        rankedEntry,
-        emojiLine,
-        rankedResults,
-      });
-
-      await interaction.editReply(out);
+      await interaction.editReply("지원하지 않는 명령어입니다.");
     } catch (e) {
       const handled = await handleRiotError(interaction, e);
       if (handled) return;
 
-      console.error("전적검색 에러:", e);
+      console.error("tft 커맨드 에러:", e);
       await interaction.editReply("전적 조회 중 오류가 발생했습니다. 서버 로그를 확인해 주세요.");
     }
   },
 };
+
+async function runTftRecord({ gameName, tagLine }) {
+  // 1) Riot ID -> PUUID
+  const account = await getAccountByRiotId(gameName, tagLine);
+  const puuid = account?.puuid;
+
+  if (!puuid) {
+    return "PUUID를 가져오지 못했습니다. Riot ID를 확인해 주세요.";
+  }
+
+  // 2) 티어 및 LP: PUUID 기반 조회
+  let rankedEntry = null;
+  try {
+    const leagueData = await getTftLeagueByPuuid(puuid);
+    rankedEntry = normalizeRankedEntry(leagueData);
+  } catch (e) {
+    // 랭크 기록이 없으면 404가 날 수 있으므로 Unranked로 처리
+    if (e?.status === 404) {
+      rankedEntry = null;
+    } else {
+      throw e;
+    }
+  }
+
+  // 3) 최근 매치 IDs를 가져온 뒤, match 상세에서 랭크만 10개 선별
+  const matchIds = await getRecentTftMatchIds(puuid, 30);
+
+  const rankedResults = await collectRecentRankedPlacements({
+    puuid,
+    matchIds,
+    limit: 10,
+  });
+
+  if (rankedResults.length === 0) {
+    const out = formatOutput({
+      gameName,
+      tagLine,
+      rankedEntry,
+      emojiLine: "랭크 경기 기록이 확인되지 않습니다.",
+      rankedResults,
+    });
+    return out;
+  }
+
+  const emojiLine = rankedResults
+    .map((r) => placementToEmoji(r.placement))
+    .join(" ");
+
+  const out = formatOutput({
+    gameName,
+    tagLine,
+    rankedEntry,
+    emojiLine,
+    rankedResults,
+  });
+
+  return out;
+}
 
 async function getAccountByRiotId(gameName, tagLine) {
   const url =
