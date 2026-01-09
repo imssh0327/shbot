@@ -1,18 +1,15 @@
 const { SlashCommandBuilder } = require("discord.js");
 const { riotGet, handleRiotError } = require("../../lib/riot");
+const { redis, ensureRedis } = require("../../lib/redis");
 
 const ASIA_API = "https://asia.api.riotgames.com";
 const KR_API = "https://kr.api.riotgames.com";
-
 const TFT_RANKED_QUEUE_ID = 1100;
-
-// /tft 낙타 고정 대상
+// matchDto 캐시 TTL (초) - 7일
+const MATCH_CACHE_TTL_SEC = 60 * 60 * 24 * 7;
 const NAKTA_GAME_NAME = "롤체는너무어려워";
 const NAKTA_TAG = "운빨게임";
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -182,10 +179,43 @@ async function getRecentTftMatchIds(puuid, count = 30) {
   return riotGet(url);
 }
 
+// matchDto Redis 캐시 적용
 async function getMatchDto(matchId) {
+  const key = matchCacheKey(matchId);
+
+  // 1) Redis에서 조회
+  try {
+    await ensureRedis();
+
+    const cached = await redis.get(key);
+
+    if (cached) {
+      console.log("[cache hit]", matchId);
+      return JSON.parse(cached);
+    }
+
+    console.log("[cache miss]", matchId);
+  } catch (e) {
+    // Redis 경유 자체가 실패하는지 확인
+    console.error("[redis get failed]", e?.message || e);
+  }
+
+  // 2) 캐시가 없으면 Riot API 호출
   const url = `${ASIA_API}/tft/match/v1/matches/${encodeURIComponent(matchId)}`;
-  return riotGet(url);
+  const matchDto = await riotGet(url);
+
+  // 3) Redis에 저장
+  try {
+    await ensureRedis();
+    await redis.set(key, JSON.stringify(matchDto), { EX: MATCH_CACHE_TTL_SEC });
+    console.log("[redis set ok]", matchId);
+  } catch (e) {
+    console.error("[redis set failed]", e?.message || e);
+  }
+
+  return matchDto;
 }
+
 
 function isRankedTftMatch(matchDto) {
   return matchDto?.info?.queue_id === TFT_RANKED_QUEUE_ID;
@@ -289,4 +319,12 @@ function formatOutput({ gameName, tagLine, rankedEntry, emojiLine, rankedResults
   lines.push(`${emojiLine}`);
   lines.push("");
   return lines.join("\n");
+}
+
+function matchCacheKey(matchId) {
+  return `tft:match:${matchId}`;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
