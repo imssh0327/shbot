@@ -187,22 +187,38 @@ async function getMatchDto(matchId) {
   try {
     await ensureRedis();
 
+    const redisGetStart = nowMs();
     const cached = await redis.get(key);
+    const redisGetEnd = nowMs();
 
     if (cached) {
-      console.log("[cache hit]", matchId);
+      const redisHitMs = redisGetEnd - redisGetStart;
+
+      perf.redisHit.count += 1;
+      perf.redisHit.totalMs += redisHitMs;
+
+      printFinalPerfOnce();
+
       return JSON.parse(cached);
     }
 
     console.log("[cache miss]", matchId);
   } catch (e) {
-    // Redis 경유 자체가 실패하는지 확인
     console.error("[redis get failed]", e?.message || e);
   }
 
   // 2) 캐시가 없으면 Riot API 호출
   const url = `${ASIA_API}/tft/match/v1/matches/${encodeURIComponent(matchId)}`;
+
+  const riotStart = nowMs();
   const matchDto = await riotGet(url);
+  const riotEnd = nowMs();
+
+  const riotMs = riotEnd - riotStart;
+  perf.riot.count += 1;
+  perf.riot.totalMs += riotMs;
+
+  printFinalPerfOnce();
 
   // 3) Redis에 저장
   try {
@@ -327,4 +343,41 @@ function matchCacheKey(matchId) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const perf = {
+  riot: { count: 0, totalMs: 0 },
+  redisHit: { count: 0, totalMs: 0 },
+  printed: false,
+};
+
+function nowMs() {
+  return Number(process.hrtime.bigint()) / 1_000_000;
+}
+
+const MIN_RIOT_SAMPLES = 10;
+const MIN_REDIS_HIT_SAMPLES = 10;
+
+function printFinalPerfOnce() {
+  if (perf.printed) return;
+  if (perf.riot.count < MIN_RIOT_SAMPLES) return;
+  if (perf.redisHit.count < MIN_REDIS_HIT_SAMPLES) return;
+
+  perf.printed = true;
+
+  const riotAvg = Math.round(perf.riot.totalMs / perf.riot.count);
+  const redisAvg = Math.round(perf.redisHit.totalMs / perf.redisHit.count);
+
+  const improvement = redisAvg > 0 ? Math.round(riotAvg / redisAvg) : 0;
+  const saved = riotAvg - redisAvg;
+
+  console.log(`
+================ Cache Performance =================
+Riot API 직접 호출 평균: ${riotAvg}ms
+Redis 캐시 hit 평균:     ${redisAvg}ms
+
+→ 약 ${improvement}배 성능 개선
+→ 약 ${saved}ms 단축
+===================================================
+`);
 }
