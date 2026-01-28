@@ -1,4 +1,4 @@
-const { resolvePuuidByRiotId } = require("../riot/account");
+const { resolvePuuidByRiotId } = require("../account");
 const { getLolRankedEntry } = require("./league");
 const { getRecentRankedSummaries } = require("./matches");
 

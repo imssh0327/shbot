@@ -1,4 +1,4 @@
-const { riotGet } = require("../../lib/riot");
+const { riotGet } = require("../../../lib/riot");
 
 const KR_API = "https://kr.api.riotgames.com";
 

@@ -1,5 +1,5 @@
-const { riotGet } = require("../../lib/riot");
-const { getJsonWithCache } = require("../../lib/matchCache");
+const { riotGet } = require("../../../lib/riot");
+const { getJsonWithCache } = require("../../../lib/matchCache");
 
 const ASIA_API = "https://asia.api.riotgames.com";
 
