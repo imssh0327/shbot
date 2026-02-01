@@ -40,6 +40,7 @@ if (fs.existsSync(commandsPath)) {
 }
 
 client.once("ready", () => {
+  console.log(`CI / CD 테스트용 코드 한 줄 추가`);
   console.log(`✅ 봇 로그인 완료: ${client.user.tag}`);
   console.log(`📊 봇이 ${client.guilds.cache.size}개의 서버에 있습니다.`);
 });
