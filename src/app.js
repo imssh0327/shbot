@@ -12,7 +12,16 @@ function readCommitSha() {
 }
 
 const COMMIT_SHA = readCommitSha();
-console.log(`[boot] shbot start commit=${COMMIT_SHA} at=${new Date().toISOString()}`);
+function nowKST() {
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    dateStyle: "short",
+    timeStyle: "medium",
+  }).format(new Date());
+}
+
+console.log(`[CI/CD] commit=${COMMIT_SHA} at=${nowKST()} (KST)`);
+
 
 const client = new Client({
   intents: [
@@ -40,7 +49,6 @@ if (fs.existsSync(commandsPath)) {
 }
 
 client.once("ready", () => {
-  console.log(`CI / CD 테스트용 코드 한 줄 추가`);
   console.log(`✅ 봇 로그인 완료: ${client.user.tag}`);
   console.log(`📊 봇이 ${client.guilds.cache.size}개의 서버에 있습니다.`);
 });
