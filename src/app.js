@@ -3,6 +3,17 @@ const { DISCORD_BOT_TOKEN } = require("./config/env");
 const fs = require("node:fs");
 const path = require("node:path");
 
+function readCommitSha() {
+  try {
+    return fs.readFileSync("./VERSION", "utf8").trim();
+  } catch (e) {
+    return process.env.COMMIT_SHA || "unknown";
+  }
+}
+
+const COMMIT_SHA = readCommitSha();
+console.log(`[boot] shbot start commit=${COMMIT_SHA} at=${new Date().toISOString()}`);
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, // 서버 관련
