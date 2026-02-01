@@ -1,0 +1,21 @@
+# fly.toml app configuration file generated for shbot on 2026-01-30T19:20:11+09:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "shbot"
+primary_region = "nrt"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[processes]
+  app = "npm start"
+
+[[vm]]
+  memory = "1gb"
+  cpus = 1
+
