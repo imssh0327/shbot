@@ -29,9 +29,13 @@ function loadCommands() {
   const commands = loadCommands();
   const rest = new REST({ version: "10" }).setToken(DISCORD_BOT_TOKEN);
 
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-    body: commands,
-  });
+  const route = GUILD_ID
+    ? Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID) // 개발: 즉시 반영
+    : Routes.applicationCommands(CLIENT_ID); // 운영: 모든 서버 대상
 
-  console.log(`✅ 슬래시 커맨드 등록 완료: ${commands.length}개`);
+  await rest.put(route, { body: commands });
+
+  console.log(
+    `✅ 슬래시 커맨드 등록 완료: ${commands.length}개 (${GUILD_ID ? "길드" : "전역"})`
+  );
 })();
