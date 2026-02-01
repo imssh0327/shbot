@@ -1,13 +1,21 @@
-version: "3.8"
-
 services:
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+      
   discord-bot:
     build: .
     container_name: discord-bot-dev
     restart: unless-stopped
     env_file:
       - .env
+    working_dir: /app
     volumes:
       - .:/app
-      - /app/node_modules
-    command: npm run dev
+      - node_modules:/app/node_modules
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - redis
+volumes:
+  node_modules:
